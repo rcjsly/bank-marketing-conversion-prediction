@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bank-campaign-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bank-campaign-api
+  template:
+    metadata:
+      labels:
+        app: bank-campaign-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8000"
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/your-user/bank-campaign-ml:replace-with-commit-sha
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: bank-campaign-db
+                  key: url
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 8000
+            initialDelaySeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bank-campaign-api
+spec:
+  selector:
+    app: bank-campaign-api
+  ports:
+    - port: 80
+      targetPort: 8000

@@ -1,0 +1,31 @@
+name: Deploy existing image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Published commit SHA tag"
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Configure Kubernetes credentials
+        env:
+          KUBE_CONFIG_BASE64: ${{ secrets.KUBE_CONFIG_BASE64 }}
+        run: |
+          test -n "$KUBE_CONFIG_BASE64"
+          printf '%s' "$KUBE_CONFIG_BASE64" | base64 -d > "$RUNNER_TEMP/kubeconfig"
+          chmod 600 "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+      - name: Roll out published image
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]]
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:$IMAGE_TAG"
+          kubectl set image deployment/bank-campaign-api "api=$IMAGE"
+          kubectl rollout status deployment/bank-campaign-api --timeout=180s
